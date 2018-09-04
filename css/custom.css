@@ -14,16 +14,9 @@ body {
 }
 
 #intro-bg {
-  /*background: url("https://www.w3schools.com/css/trolltunga.jpg") center center no-repeat; */
   background: url("../img/Arjun_Lights.jpeg") no-repeat center center fixed !important;
   -webkit-background-size: cover;
   -moz-background-size: cover;
   -o-background-size: cover;
-  background-size: cover !important; 
-/*  width: 100%;
-  height: 100%; */
+  background-size: cover !important;
 }
-
-./*bg-primary {
-    background-color: #f0f !important;
-}*/
