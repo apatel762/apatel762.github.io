@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+
+        <title>Restic for backups</title>
+
+        <link rel="stylesheet" href="css/normalize.css" type="text/css" media="all">
+        <link rel="stylesheet" href="css/material-article.css" type="text/css" media="all">
+    </head>
+    <body>
+        <table>
+            <tr>
+                <th style="text-align: left;">2020-06-24</a></th>
+                <th style="text-align: right;"><a href="contents.html">Menu</a></th>
+            </tr>
+        </table>
+
+        <h1 id="restic">Restic</h1>
+        <h2 id="introduction">Introduction</h2>
+        <p>I'm using Restic to copy my files to some storage in the cloud every now and then. If the computer blows up, then as long as my off site storage is there I can get the files back again.</p>
+        <p>I'm really lazy so I'm using <strong>autorestic</strong> to handle Restic for me.</p>
+        <p>Restic: <a href="https://restic.net/">Homepage</a>, <a href="https://github.com/restic/restic">GitHub</a></p>
+        <p>Autorestic: <a href="https://cupcakearmy.github.io/autorestic/">Homepage</a>, <a href="https://github.com/cupcakearmy/autorestic">GitHub</a></p>
+        <h2 id="usage">Usage</h2>
+        <p>It was actually pretty simple to get it all set up. The hardest part was installing it all.</p>
+        <h3 id="installation">Installation</h3>
+        <p>Note down the latest release version number of Restic from the GitHub <a href="https://github.com/restic/restic/releases">releases page</a>.</p>
+        <p>Then, to get it onto your machine (and make it executable and all that), run these commands (<strong>you need bzip2</strong>):</p>
+        <pre><code># get the bzip onto your machine
+# substitute &#39;0.9.6&#39; with the latest release number
+sudo wget -O /opt/restic.bz2 \
+    https://github.com/restic/restic/releases/download/v0.9.6/restic_0.9.6_linux_amd64.bz2
+
+# unzip it, the .bz2 file should turn into a binary with
+# no file ext
+sudo bunzip2 /opt/restic.bz2
+
+# soft link the downloaded binary to our local bin
+# try the top one first, if it doesn&#39;t work, try the bottom one
+sudo ln -s /opt/restic /usr/bin/restic
+sudo ln -s /opt/restic /usr/local/bin/restic
+
+# make sure that the original file executable
+# the symlink points to this, so as long as this is fine we&#39;re
+# all good
+sudo chmod 0755 /opt/restic
+
+# test that it works
+restic version
+
+# you can self update it now that it&#39;s been installed.
+# the GPG signatures are verified automatically
+restic self-update</code></pre>
+        <p>For autorestic you need <code>curl</code>, <code>wget</code> and <code>bzip2</code>. <strong>Read the install script before you pipe it into <code>sudo bash</code>!</strong></p>
+        <pre><code>curl -s https://raw.githubusercontent.com/CupCakeArmy/autorestic/master/install.sh \
+    | sudo bash</code></pre>
+        <h3 id="configuration">Configuration</h3>
+        <p>All you have to do to get started is to make the config file in your home directory:</p>
+        <pre><code>touch ~/.autorestic.yml</code></pre>
+        <p>Open up that file with a text editor and put some config in there (<a href="https://cupcakearmy.github.io/autorestic/config">read the docs</a>):</p>
+        <pre><code>locations:
+    ssh-keys:
+        from: /home/arjun/.ssh
+        to: backblaze
+        options:
+            forget:
+                keep-daily: 7
+                keep-weekly: 4
+                keep-monthly: 6
+                keep-yearly: 1
+
+    etc:
+        from: /etc
+        to: backblaze
+        options:
+            forget:
+                keep-daily: 7
+                keep-weekly: 4
+                keep-monthly: 6
+                keep-yearly: 1
+
+backends:
+    backblaze:
+        type: b2
+        path: your-b2-bucket-name
+        key: &gt;-
+            &lt;auto-generated-password&gt;
+        # you actually don&#39;t have to use a master key here if
+        # you&#39;ve got the latest version of restic installed...
+        B2_ACCOUNT_ID: &lt;master-account-id&gt;
+        B2_ACCOUNT_KEY: &lt;master-key&gt;</code></pre>
+        <h3 id="usage-1">Usage</h3>
+        <p>Once you've got the config all in one place, you just have to run a few commands to get what you want:</p>
+        <pre><code># optional: check for issues in the config file
+# this will take a while the first time
+# because it has to attempt to connect to your storage backends
+autorestic check -a
+
+# backup everything in the config file
+autorestic backup -a
+
+# this is basically saying:
+# &quot;restore &#39;home&#39; from &#39;backblaze&#39; to this folder&quot;
+# the &#39;home&#39; part is a location from your config file
+autorestic restore -l home --from backblaze --to /path/to/folder</code></pre>
+        <p>And that's it. But I want it to be automatic so there's more...</p>
+        <h3 id="systemd">Systemd</h3>
+        <p>Using <code>cron</code> would be nice, like I've done on my server, but my laptop isn't on 24/7 so I can't just say &quot;yeah, do a backup 2am every day please, thanks&quot;. It won't work, because I'm not using my laptop at 2am.</p>
+        <p>I wanted the backups to run every time I boot up the laptop. Systemd can do that, so I made a systemd service for it.</p>
+        <p>Make a <code>.service</code> file:</p>
+        <pre><code>sudo vim /lib/systemd/system/autorestic-backups.service</code></pre>
+        <p>Tell it to run the <code>autorestic backup</code> command on startup:</p>
+        <pre><code>[Unit]
+Description=Autorestic Backup Service
+Wants=network.target
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/autorestic backup --all --config /home/arjun/.autorestic.yml
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+        <p>The <code>ExecStart</code> bit of the service is the command that is executed as the service starts up (as you'd probably expect, given the name). You have to give the full path to the <code>autorestic</code> command which you should know since you just installed it, but if you've forgotten, you can use <code>which autorestic</code> or <code>command -v autorestic</code> to get the full path of the command.</p>
+        <p>If you're backing up system files, you don't need to add <code>sudo</code> to the <code>ExecStart</code> command because by default Systemd runs as the root user.</p>
+        <p>The <code>Wants</code> and <code>After</code> part of the unit specifies <code>network.target</code> so that we can guarantee that this service will run after the PC has connection to the network.</p>
+        <p>For more info, have a read of the <code>man</code> page <a href="https://www.freedesktop.org/software/systemd/man/systemd.service.html">here</a></p>
+        <p>Now, run these commands:</p>
+        <pre><code># reload the whole systemd daemon
+systemctl daemon-reload
+
+# enable our new service
+systemctl enable autorestic-backups.service
+
+# run our new service, this will kick off a backup
+# you don&#39;t have to do this; could just reboot your laptop instead
+systemctl start autorestic-backups
+
+# OPTIONAL: if the above command doesn&#39;t work, try this
+# systemctl start autorestic-backups.service</code></pre>
+        <p>That's it!</p>
+        <p>NOTE: you should check your restic snapshots every now and then to see if they are actually being created. The command to view snapshots looks something like this:</p>
+        <pre><code>sudo /usr/local/bin/autorestic \
+    --config /home/arjun/.autorestic.yml \
+    --backend backblaze exec snapshots</code></pre>
+        <p>Use <code>sudo</code> because when we run the snapshots, they are run as <code>root</code> and they leave behind cache files that you can only read when you are running as <code>root</code>.</p>
+        <p>Also, you will need to prune the snapshots manually. It will take a <strong>very</strong> long time (had to leave my laptop on for two days last time). The command for that looks something like this:</p>
+        <pre><code>sudo /usr/local/bin/autorestic \
+    --config /home/arjun/.autorestic.yml forget --all</code></pre>
+    </body>
+</html>
