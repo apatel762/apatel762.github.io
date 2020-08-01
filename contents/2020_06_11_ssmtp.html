@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+
+        <title>SSMTP on my server</title>
+
+        <link rel="stylesheet" href="css/normalize.css" type="text/css" media="all">
+        <link rel="stylesheet" href="css/material-article.css" type="text/css" media="all">
+    </head>
+    <body>
+        <table>
+            <tr>
+                <th style="text-align: left;">2020-06-11</a></th>
+                <th style="text-align: right;"><a href="contents.html">Menu</a></th>
+            </tr>
+        </table>
+
+        <h1 id="ssmtp">SSMTP</h1>
+        <p>This is how I got ssmtp to send emails through my Gmail account to myself using my server. The emails are mainly alerts e.g. &quot;Hard drive report&quot;, &quot;Failed to updated DNS records&quot;, &quot;Failed to sync RAID arrays&quot;</p>
+        <h2 id="setup">Setup</h2>
+        <p>My server uses <code>apt</code> so installing it was like this: <code>sudo apt install ssmtp</code></p>
+        <p>This is roughly what my <code>/etc/ssmtp/ssmtp.conf</code> looks like:</p>
+        <pre><code>#
+# Config file for sSMTP sendmail
+#
+
+UseSTARTTLS=YES
+
+# allow people to override the FROM line so
+# the email can appear as if it came from anyone
+FromLineOverride=YES
+
+root=&lt;me&gt;@googlemail.com
+mailhub=smtp.gmail.com:587
+
+AuthUser=&lt;me&gt;@googlemail.com
+AuthPass=&lt;app_password_here&gt;</code></pre>
+        <p>The <code>AuthPass</code> can't be your actual password if you're using MFA; you have to make an app password. See <a href="https://support.google.com/accounts/answer/185833?hl=en">this guide</a> by Google.</p>
+        <h2 id="usage">Usage</h2>
+        <p>Then you just have to use the following command to send an email</p>
+        <pre><code>sudo sendmail email@abc.com &lt;&lt;&lt; &quot;text&quot;
+sudo sendmail email@abc.com,email2@abc.com &lt; /path/to/file.html</code></pre>
+        <h3 id="example">Example</h3>
+        <p>This is a snippet from the <code>send_mail.sh</code> on my server:</p>
+        <pre><code>#!/bin/bash 
+
+local FROM
+FROM=$(grep AuthUser /etc/ssmtp/ssmtp.conf | sed &quot;s/.*=//g&quot;)    
+log &quot;Email will send from $FROM&quot;
+
+{
+  echo &quot;To: $(join_by &#39;,&#39; &quot;${MAIL_ALERT_RECIPIENTS[@]}&quot;)&quot;
+  echo &quot;From: Big Boy Server &lt;$FROM&gt;&quot;
+  echo &quot;Subject: $1&quot;
+  echo &quot;&quot;
+  echo &quot;$2&quot;
+} \
+| /sbin/ssmtp -t</code></pre>
+        <p>The <code>$MAIL_ALERT_RECIPIENTS</code> variable is sourced in from a different file. The parameters <code>$1</code> and <code>$2</code> are passed in by whatever script is sending the alert. The first parameter is the email subject and the second is the body of the email.</p>
+
+        <h3 id="Screenshot">Screenshot</h3>
+        <p>This is what the emails look like when they reach your inbox.</p>
+        <img src="img/2020_06_11_ssmtp_example.png"></img>
+    </body>
+</html>
