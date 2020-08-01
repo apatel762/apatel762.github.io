@@ -240,17 +240,3 @@ mark {
 fieldset {
     border: 1px solid var(--primary);
 }
-
-header {
-    display:flex;
-    align-items:center;
-    max-width:69em;
-    margin:1em auto;
-    padding:0 1em
-}
-
-header h1, header p {
-    line-height:1em;
-    flex:1;
-    margin:0
-}
